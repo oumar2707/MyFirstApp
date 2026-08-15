@@ -5,13 +5,8 @@ import '../widgets/task_card.dart';
 
 /// ============================================================================
 /// FICHIER : lib/screens/home_screen.dart
-/// ROLE    : Écran principal de l'application To-Do List.
-/// EXPLICATION :
-/// Ce composant gère l'affichage des tâches, la saisie utilisateur, la modale de
-/// modification, la persistance locale via `TaskStorageService` et applique une
-/// charte graphique moderne basée STRICTEMENT sur 2 COULEURS :
-/// - Indigo (#3F51B5) : Couleur principale (Header, Bouton Ajouter, Priorités)
-/// - Teal (#009688)   : Couleur secondaire (Statuts, Valider, Succès)
+/// ROLE    : Écran principal de la To-Do Liste (Design Material 3 Haut de Gamme)
+/// CHARTE  : Couleur unique de sélection (Deep Indigo #4F46E5) pour tous les éléments et filtres.
 /// ============================================================================
 
 class HomeScreen extends StatefulWidget {
@@ -22,128 +17,119 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  // Liste locale des tâches affichées à l'écran
-  List<Task> _tasks = [];
+  // Couleur unique de sélection pour TOUS les filtres et éléments actifs
+  static const Color primarySelectionColor = Color(0xFF4F46E5);
 
-  // Variable pour savoir si l'application est en train de charger les données au démarrage
+  List<Task> _tasks = [];
   bool _isLoading = true;
 
-  // Contrôleur pour lire le texte saisi dans le champ de titre
+  // Contrôleur pour le formulaire d'ajout
   final TextEditingController _titleController = TextEditingController();
 
-  // Valeurs sélectionnées par défaut pour le formulaire d'ajout
+  // Contrôleur pour la recherche
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
+
+  // Options du formulaire
   String _selectedPriority = 'Moyenne';
   String _selectedStatus = 'À faire';
 
-  // Listes des options disponibles
+  // Filtre sélectionné de la liste ('Toutes', 'À faire', 'En cours', 'Terminée')
+  String _activeFilter = 'Toutes';
+
   final List<String> _priorities = ['Basse', 'Moyenne', 'Haute'];
   final List<String> _statuses = ['À faire', 'En cours', 'Terminée'];
+  final List<String> _filterTabs = ['Toutes', 'À faire', 'En cours', 'Terminée'];
 
   @override
   void initState() {
     super.initState();
-    // Au démarrage de l'écran, on charge automatiquement les tâches sauvegardées sur le téléphone
     _loadSavedTasks();
   }
 
   @override
   void dispose() {
     _titleController.dispose();
+    _searchController.dispose();
     super.dispose();
   }
 
-  /// --------------------------------------------------------------------------
-  /// LECTURE INITIALE : Charge les tâches depuis SharedPreferences
-  /// --------------------------------------------------------------------------
+  /// Chargement des tâches depuis SharedPreferences
   Future<void> _loadSavedTasks() async {
-    // 1. Récupérer les tâches via le service
     List<Task> loadedTasks = await TaskStorageService.loadTasks();
-
-    // 2. Mettre à jour l'état de l'application et désactiver l'indicateur de chargement
     setState(() {
       _tasks = loadedTasks;
       _isLoading = false;
     });
   }
 
-  /// --------------------------------------------------------------------------
-  /// SAUVEGARDE AUTOMATIQUE : Utilitaire pour enregistrer la liste courante
-  /// --------------------------------------------------------------------------
+  /// Enregistrement local des tâches
   Future<void> _saveCurrentTasks() async {
     await TaskStorageService.saveTasks(_tasks);
   }
 
-  /// --------------------------------------------------------------------------
-  /// OPERATEUR C : Créer une tâche
-  /// --------------------------------------------------------------------------
+  /// Ajouter une nouvelle tâche
   void _addTask() {
     final String titleText = _titleController.text.trim();
 
-    // Validation simple : le titre ne doit pas être vide
     if (titleText.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: const Row(
             children: [
-              Icon(Icons.info_outline, color: Colors.white),
+              Icon(Icons.info_outline_rounded, color: Colors.white),
               SizedBox(width: 8),
-              Text('Veuillez saisir un titre pour la tâche.'),
+              Text('Veuillez entrer le titre de la tâche.'),
             ],
           ),
-          backgroundColor: Colors.indigo.shade800,
+          backgroundColor: primarySelectionColor,
           behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         ),
       );
       return;
     }
 
-    // Création de la nouvelle tâche
     final Task newTask = Task(
-      id: DateTime.now().millisecondsSinceEpoch.toString(), // ID unique basé sur la date/heure
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
       title: titleText,
       priority: _selectedPriority,
       status: _selectedStatus,
       isCompleted: _selectedStatus == 'Terminée',
     );
 
-    // Mettre à jour la liste dans l'interface et sauvegarder
     setState(() {
-      _tasks.insert(0, newTask); // Ajouter en haut de la liste
-      _titleController.clear();  // Réinitialiser le champ texte
-      _selectedPriority = 'Moyenne'; // Réinitialiser la priorité
-      _selectedStatus = 'À faire';  // Réinitialiser le statut
+      _tasks.insert(0, newTask);
+      _titleController.clear();
+      _selectedPriority = 'Moyenne';
+      _selectedStatus = 'À faire';
     });
 
-    _saveCurrentTasks(); // Sauvegarde locale
+    _saveCurrentTasks();
 
-    // Notification utilisateur
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: const Row(
           children: [
-            Icon(Icons.check_circle_outline, color: Colors.white),
+            Icon(Icons.check_circle_rounded, color: Colors.white),
             SizedBox(width: 8),
-            Text('Tâche ajoutée et sauvegardée !'),
+            Text('Tâche ajoutée avec succès !'),
           ],
         ),
         duration: const Duration(seconds: 2),
-        backgroundColor: Colors.teal,
+        backgroundColor: primarySelectionColor,
         behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
     );
   }
 
-  /// --------------------------------------------------------------------------
-  /// OPERATEUR U : Basculer l'état de la case à cocher (Terminée / À faire)
-  /// --------------------------------------------------------------------------
+  /// Basculer l'état terminé
   void _toggleTaskCompleted(Task task, bool? isChecked) {
     final bool newIsCompleted = isChecked ?? false;
 
     setState(() {
       task.isCompleted = newIsCompleted;
-      // Si la case est cochée, on met aussi à jour le statut en 'Terminée'
       if (newIsCompleted) {
         task.status = 'Terminée';
       } else if (task.status == 'Terminée') {
@@ -151,12 +137,10 @@ class _HomeScreenState extends State<HomeScreen> {
       }
     });
 
-    _saveCurrentTasks(); // Sauvegarde automatique
+    _saveCurrentTasks();
   }
 
-  /// --------------------------------------------------------------------------
-  /// OPERATEUR U : Modifier une tâche via une boîte de dialogue pré-remplie
-  /// --------------------------------------------------------------------------
+  /// Dialogue de modification
   void _showEditDialog(Task task) {
     final TextEditingController editTitleController =
         TextEditingController(text: task.title);
@@ -174,8 +158,8 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               title: const Row(
                 children: [
-                  Icon(Icons.edit_note_rounded, color: Colors.indigo, size: 28),
-                  SizedBox(width: 8),
+                  Icon(Icons.edit_note_rounded, color: primarySelectionColor, size: 26),
+                  SizedBox(width: 10),
                   Text('Modifier la tâche', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                 ],
               ),
@@ -184,7 +168,6 @@ class _HomeScreenState extends State<HomeScreen> {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Titre
                     TextField(
                       controller: editTitleController,
                       decoration: InputDecoration(
@@ -195,11 +178,15 @@ class _HomeScreenState extends State<HomeScreen> {
                           borderRadius: BorderRadius.circular(12),
                           borderSide: const BorderSide(color: Color(0xFFCBD5E1)),
                         ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(color: primarySelectionColor, width: 2),
+                        ),
                       ),
                     ),
                     const SizedBox(height: 16),
 
-                    // Priorité
+                    // Priorité (Couleur unifiée de sélection)
                     const Text(
                       'Priorité :',
                       style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF475569)),
@@ -214,11 +201,11 @@ class _HomeScreenState extends State<HomeScreen> {
                           labelStyle: TextStyle(
                             fontSize: 12,
                             fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                            color: isSelected ? Colors.white : Colors.indigo.shade900,
+                            color: isSelected ? Colors.white : const Color(0xFF475569),
                           ),
                           selected: isSelected,
-                          selectedColor: Colors.indigo,
-                          backgroundColor: Colors.indigo.shade50,
+                          selectedColor: primarySelectionColor,
+                          backgroundColor: const Color(0xFFF1F5F9),
                           side: BorderSide.none,
                           showCheckmark: false,
                           onSelected: (selected) {
@@ -233,7 +220,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                     const SizedBox(height: 16),
 
-                    // Statut
+                    // Statut (Couleur unifiée de sélection)
                     const Text(
                       'Statut :',
                       style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF475569)),
@@ -243,30 +230,16 @@ class _HomeScreenState extends State<HomeScreen> {
                       spacing: 6,
                       children: _statuses.map((s) {
                         final bool isSelected = editStatus == s;
-                        IconData statusIcon;
-                        if (s == 'Terminée') {
-                          statusIcon = Icons.check_circle_outline_rounded;
-                        } else if (s == 'En cours') {
-                          statusIcon = Icons.sync_rounded;
-                        } else {
-                          statusIcon = Icons.radio_button_unchecked_rounded;
-                        }
-
                         return ChoiceChip(
-                          avatar: Icon(
-                            statusIcon,
-                            size: 14,
-                            color: isSelected ? Colors.white : Colors.teal.shade700,
-                          ),
                           label: Text(s),
                           labelStyle: TextStyle(
                             fontSize: 12,
                             fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                            color: isSelected ? Colors.white : Colors.teal.shade900,
+                            color: isSelected ? Colors.white : const Color(0xFF475569),
                           ),
                           selected: isSelected,
-                          selectedColor: Colors.teal,
-                          backgroundColor: Colors.teal.shade50,
+                          selectedColor: primarySelectionColor,
+                          backgroundColor: const Color(0xFFF1F5F9),
                           side: BorderSide.none,
                           showCheckmark: false,
                           onSelected: (selected) {
@@ -289,7 +262,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.indigo,
+                    backgroundColor: primarySelectionColor,
                     foregroundColor: Colors.white,
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                   ),
@@ -302,13 +275,13 @@ class _HomeScreenState extends State<HomeScreen> {
                         task.status = editStatus;
                         task.isCompleted = editStatus == 'Terminée';
                       });
-                      _saveCurrentTasks(); // Sauvegarde automatique
+                      _saveCurrentTasks();
                       Navigator.of(dialogContext).pop();
 
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
                           content: const Text('Tâche modifiée avec succès !'),
-                          backgroundColor: Colors.teal,
+                          backgroundColor: primarySelectionColor,
                           behavior: SnackBarBehavior.floating,
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                         ),
@@ -325,9 +298,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  /// --------------------------------------------------------------------------
-  /// OPERATEUR D : Supprimer une tâche avec confirmation
-  /// --------------------------------------------------------------------------
+  /// Dialogue de confirmation de suppression
   void _confirmDeleteTask(Task task) {
     showDialog(
       context: context,
@@ -338,12 +309,12 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           title: const Row(
             children: [
-              Icon(Icons.delete_outline_rounded, color: Colors.indigo, size: 26),
-              SizedBox(width: 8),
-              Text('Confirmation'),
+              Icon(Icons.delete_outline_rounded, color: Color(0xFFEF4444), size: 26),
+              SizedBox(width: 10),
+              Text('Supprimer la tâche'),
             ],
           ),
-          content: Text('Voulez-vous vraiment supprimer la tâche "${task.title}" ?'),
+          content: Text('Voulez-vous vraiment supprimer "${task.title}" ?'),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(dialogContext).pop(),
@@ -351,7 +322,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             ElevatedButton(
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.indigo,
+                backgroundColor: const Color(0xFFEF4444),
                 foregroundColor: Colors.white,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
               ),
@@ -359,13 +330,13 @@ class _HomeScreenState extends State<HomeScreen> {
                 setState(() {
                   _tasks.removeWhere((item) => item.id == task.id);
                 });
-                _saveCurrentTasks(); // Sauvegarde automatique
+                _saveCurrentTasks();
                 Navigator.of(dialogContext).pop();
 
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
                     content: const Text('Tâche supprimée !'),
-                    backgroundColor: Colors.indigo.shade800,
+                    backgroundColor: const Color(0xFFEF4444),
                     behavior: SnackBarBehavior.floating,
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                   ),
@@ -379,9 +350,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  /// --------------------------------------------------------------------------
-  /// OPERATEUR R : Afficher les détails d'une tâche
-  /// --------------------------------------------------------------------------
+  /// Dialogue des détails de la tâche (Lire)
   void _showTaskDetails(Task task) {
     showDialog(
       context: context,
@@ -392,8 +361,8 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           title: Row(
             children: [
-              const Icon(Icons.info_outline_rounded, color: Colors.indigo),
-              const SizedBox(width: 8),
+              const Icon(Icons.task_alt_rounded, color: primarySelectionColor),
+              const SizedBox(width: 10),
               Expanded(
                 child: Text(
                   task.title,
@@ -407,35 +376,20 @@ class _HomeScreenState extends State<HomeScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const Divider(),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  const Icon(Icons.flag_rounded, size: 18, color: Colors.indigo),
-                  const SizedBox(width: 8),
-                  Text('Priorité : ${task.priority}', style: const TextStyle(fontSize: 15)),
-                ],
-              ),
               const SizedBox(height: 10),
               Row(
                 children: [
-                  const Icon(Icons.bubble_chart_outlined, size: 18, color: Colors.teal),
-                  const SizedBox(width: 8),
-                  Text('Statut : ${task.status}', style: const TextStyle(fontSize: 15)),
+                  const Icon(Icons.flag_rounded, size: 18, color: primarySelectionColor),
+                  const SizedBox(width: 10),
+                  Text('Priorité : ${task.priority}', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500)),
                 ],
               ),
-              const SizedBox(height: 10),
+              const SizedBox(height: 12),
               Row(
                 children: [
-                  Icon(
-                    task.isCompleted ? Icons.check_circle_rounded : Icons.pending_actions_rounded,
-                    size: 18,
-                    color: task.isCompleted ? Colors.teal : Colors.indigo,
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    'État : ${task.isCompleted ? 'Terminée ✔' : 'En cours ⏳'}',
-                    style: const TextStyle(fontSize: 15),
-                  ),
+                  const Icon(Icons.pending_actions_rounded, size: 18, color: primarySelectionColor),
+                  const SizedBox(width: 10),
+                  Text('Statut : ${task.status}', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500)),
                 ],
               ),
             ],
@@ -443,7 +397,7 @@ class _HomeScreenState extends State<HomeScreen> {
           actions: [
             ElevatedButton(
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.indigo,
+                backgroundColor: primarySelectionColor,
                 foregroundColor: Colors.white,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
               ),
@@ -456,84 +410,190 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  /// Obtenir la liste filtrée des tâches selon la recherche et le filtre actif
+  List<Task> get _filteredTasks {
+    return _tasks.where((task) {
+      // Filtrer par recherche
+      final matchesSearch = _searchQuery.isEmpty ||
+          task.title.toLowerCase().contains(_searchQuery.toLowerCase());
+
+      // Filtrer par onglet de statut
+      bool matchesFilter = true;
+      if (_activeFilter == 'À faire') {
+        matchesFilter = task.status == 'À faire' && !task.isCompleted;
+      } else if (_activeFilter == 'En cours') {
+        matchesFilter = task.status == 'En cours' && !task.isCompleted;
+      } else if (_activeFilter == 'Terminée') {
+        matchesFilter = task.status == 'Terminée' || task.isCompleted;
+      }
+
+      return matchesSearch && matchesFilter;
+    }).toList();
+  }
+
   @override
   Widget build(BuildContext context) {
+    final int totalCount = _tasks.length;
+    final int completedCount = _tasks.where((t) => t.isCompleted || t.status == 'Terminée').length;
+    final int inProgressCount = totalCount - completedCount;
+
     return Scaffold(
-      appBar: AppBar(
-        title: const Row(
-          children: [
-            Icon(Icons.check_circle_outline, color: Colors.white),
-            SizedBox(width: 10),
-            Text('Mes Tâches', style: TextStyle(fontWeight: FontWeight.bold)),
-          ],
-        ),
-        backgroundColor: Colors.indigo,
-        foregroundColor: Colors.white,
-        elevation: 2,
-        centerTitle: false,
-      ),
-      body: _isLoading
-          ? const Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
+      backgroundColor: const Color(0xFFF8FAFC),
+      body: SafeArea(
+        child: _isLoading
+            ? const Center(
+                child: CircularProgressIndicator(color: primarySelectionColor),
+              )
+            : Column(
                 children: [
-                  CircularProgressIndicator(color: Colors.indigo),
-                  SizedBox(height: 12),
-                  Text('Chargement des tâches sauvegardées...'),
+                  // 1. Header Moderne avec Gradient et Statistiques
+                  _buildModernHeader(totalCount, inProgressCount, completedCount),
+
+                  // 2. Formulaire d'ajout de tâche
+                  _buildAddTaskForm(),
+
+                  // 3. Barre de Recherche & Barre de Filtres à COULEUR UNIQUE DE SÉLECTION
+                  _buildFilterBar(),
+
+                  // 4. Liste des Tâches
+                  Expanded(
+                    child: _filteredTasks.isEmpty
+                        ? _buildEmptyState()
+                        : ListView.builder(
+                            itemCount: _filteredTasks.length,
+                            padding: const EdgeInsets.only(top: 8, bottom: 20),
+                            itemBuilder: (context, index) {
+                              final task = _filteredTasks[index];
+                              return TaskCard(
+                                task: task,
+                                onToggleCompleted: (value) => _toggleTaskCompleted(task, value),
+                                onView: () => _showTaskDetails(task),
+                                onEdit: () => _showEditDialog(task),
+                                onDelete: () => _confirmDeleteTask(task),
+                              );
+                            },
+                          ),
+                  ),
                 ],
               ),
-            )
-          : Column(
-              children: [
-                // 1. Formulaire d'ajout de tâche (en haut avec bouton "Ajouter" placé tout en face)
-                _buildAddTaskForm(),
-
-                const SizedBox(height: 4),
-
-                // 2. Liste des tâches (en dessous du formulaire)
-                Expanded(
-                  child: _tasks.isEmpty
-                      ? _buildEmptyState()
-                      : ListView.builder(
-                          itemCount: _tasks.length,
-                          padding: const EdgeInsets.only(top: 4, bottom: 16),
-                          itemBuilder: (context, index) {
-                            final task = _tasks[index];
-                            return TaskCard(
-                              task: task,
-                              onToggleCompleted: (value) => _toggleTaskCompleted(task, value),
-                              onView: () => _showTaskDetails(task),
-                              onEdit: () => _showEditDialog(task),
-                              onDelete: () => _confirmDeleteTask(task),
-                            );
-                          },
-                        ),
-                ),
-              ],
-            ),
+      ),
     );
   }
 
-  /// Widget construisant le formulaire d'ajout en haut de l'écran avec bouton "Ajouter" en face de la saisie
-  Widget _buildAddTaskForm() {
+  /// En-tête moderne avec gradient et indicateurs statistiques
+  Widget _buildModernHeader(int total, int inProgress, int completed) {
     return Container(
-      padding: const EdgeInsets.all(16.0),
-      decoration: BoxDecoration(
-        color: Colors.white,
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Color(0xFF3730A3), primarySelectionColor],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
         boxShadow: [
           BoxShadow(
-            color: Colors.indigo.withValues(alpha: 0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
+            color: Color(0x334F46E5),
+            blurRadius: 12,
+            offset: Offset(0, 4),
           ),
         ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Row avec le champ de texte et le bouton "Ajouter" placé tout en face
+          const Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Icon(Icons.check_circle_rounded, color: Colors.white, size: 26),
+                  SizedBox(width: 10),
+                  Text(
+                    'Mes Tâches',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: -0.5,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+
+          // Cards de Statistiques
           Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              _buildStatChip('Total', total.toString(), Colors.white.withValues(alpha: 0.2)),
+              const SizedBox(width: 10),
+              _buildStatChip('En cours', inProgress.toString(), Colors.white.withValues(alpha: 0.2)),
+              const SizedBox(width: 10),
+              _buildStatChip('Terminées', completed.toString(), Colors.white.withValues(alpha: 0.25)),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatChip(String label, String value, Color bg) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 10),
+        decoration: BoxDecoration(
+          color: bg,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Column(
+          children: [
+            Text(
+              value,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              label,
+              style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.9),
+                fontSize: 11,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Formulaire d'ajout de tâche épuré
+  Widget _buildAddTaskForm() {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Saisie texte + Bouton Ajouter
+          Row(
             children: [
               Expanded(
                 child: TextField(
@@ -541,14 +601,22 @@ class _HomeScreenState extends State<HomeScreen> {
                   decoration: InputDecoration(
                     hintText: 'Que devez-vous faire ?',
                     hintStyle: const TextStyle(color: Color(0xFF94A3B8), fontSize: 14),
-                    prefixIcon: const Icon(Icons.add_task_rounded, color: Colors.indigo),
+                    prefixIcon: const Icon(Icons.add_task_rounded, color: primarySelectionColor, size: 20),
                     filled: true,
-                    fillColor: const Color(0xFFF1F5F9),
+                    fillColor: const Color(0xFFF8FAFC),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide.none,
+                      borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
                     ),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: primarySelectionColor, width: 1.8),
+                    ),
                   ),
                   onSubmitted: (_) => _addTask(),
                 ),
@@ -556,59 +624,49 @@ class _HomeScreenState extends State<HomeScreen> {
               const SizedBox(width: 10),
               ElevatedButton.icon(
                 onPressed: _addTask,
-                icon: const Icon(Icons.add, size: 18),
-                label: const Text(
-                  'Ajouter',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                ),
+                icon: const Icon(Icons.add_rounded, size: 18),
+                label: const Text('Ajouter', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.indigo,
+                  backgroundColor: primarySelectionColor,
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  elevation: 1,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  elevation: 0,
                 ),
               ),
             ],
           ),
 
-          const SizedBox(height: 12),
+          const SizedBox(height: 10),
 
-          // Options de personnalisation : Priorité (Thème Indigo) & Statut (Thème Teal)
-          Wrap(
-            alignment: WrapAlignment.spaceBetween,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            spacing: 12,
-            runSpacing: 8,
+          // Options de sélection (Priorité & Statut) - Couleur de sélection unique Indigo
+          Row(
             children: [
-              // Sélection Priorité (Thème Indigo)
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Text(
-                    'Priorité : ',
-                    style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: Color(0xFF475569)),
-                  ),
-                  Wrap(
-                    spacing: 4,
-                    children: _priorities.map((p) {
+              // Priorité
+              Expanded(
+                child: Wrap(
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  spacing: 4,
+                  children: [
+                    const Text(
+                      'Priorité: ',
+                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF64748B)),
+                    ),
+                    ..._priorities.map((p) {
                       final isSelected = _selectedPriority == p;
                       return ChoiceChip(
                         label: Text(p),
                         labelStyle: TextStyle(
-                          fontSize: 12,
+                          fontSize: 11,
                           fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                          color: isSelected ? Colors.white : Colors.indigo.shade900,
+                          color: isSelected ? Colors.white : const Color(0xFF475569),
                         ),
                         selected: isSelected,
-                        selectedColor: Colors.indigo,
-                        backgroundColor: Colors.indigo.shade50,
+                        selectedColor: primarySelectionColor,
+                        backgroundColor: const Color(0xFFF1F5F9),
                         side: BorderSide.none,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
+                        padding: EdgeInsets.zero,
+                        visualDensity: VisualDensity.compact,
                         showCheckmark: false,
                         onSelected: (selected) {
                           if (selected) {
@@ -618,63 +676,9 @@ class _HomeScreenState extends State<HomeScreen> {
                           }
                         },
                       );
-                    }).toList(),
-                  ),
-                ],
-              ),
-
-              // Sélection Statut (Thème Teal avec icônes)
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Text(
-                    'Statut : ',
-                    style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: Color(0xFF475569)),
-                  ),
-                  Wrap(
-                    spacing: 4,
-                    children: _statuses.map((s) {
-                      final isSelected = _selectedStatus == s;
-                      IconData statusIcon;
-                      if (s == 'Terminée') {
-                        statusIcon = Icons.check_circle_outline_rounded;
-                      } else if (s == 'En cours') {
-                        statusIcon = Icons.sync_rounded;
-                      } else {
-                        statusIcon = Icons.radio_button_unchecked_rounded;
-                      }
-
-                      return ChoiceChip(
-                        avatar: Icon(
-                          statusIcon,
-                          size: 14,
-                          color: isSelected ? Colors.white : Colors.teal.shade700,
-                        ),
-                        label: Text(s),
-                        labelStyle: TextStyle(
-                          fontSize: 12,
-                          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                          color: isSelected ? Colors.white : Colors.teal.shade900,
-                        ),
-                        selected: isSelected,
-                        selectedColor: Colors.teal,
-                        backgroundColor: Colors.teal.shade50,
-                        side: BorderSide.none,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        showCheckmark: false,
-                        onSelected: (selected) {
-                          if (selected) {
-                            setState(() {
-                              _selectedStatus = s;
-                            });
-                          }
-                        },
-                      );
-                    }).toList(),
-                  ),
-                ],
+                    }),
+                  ],
+                ),
               ),
             ],
           ),
@@ -683,25 +687,129 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  /// Widget affiché lorsque la liste de tâches est vide
+  /// Barre de Recherche et Onglets de Filtres avec une SEULE COULEUR DE SÉLECTION (Primary Indigo)
+  Widget _buildFilterBar() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      child: Column(
+        children: [
+          // Champ de recherche
+          TextField(
+            controller: _searchController,
+            onChanged: (value) {
+              setState(() {
+                _searchQuery = value;
+              });
+            },
+            decoration: InputDecoration(
+              hintText: 'Rechercher une tâche...',
+              hintStyle: const TextStyle(color: Color(0xFF94A3B8), fontSize: 13),
+              prefixIcon: const Icon(Icons.search_rounded, color: Color(0xFF94A3B8), size: 20),
+              suffixIcon: _searchQuery.isNotEmpty
+                  ? IconButton(
+                      icon: const Icon(Icons.clear_rounded, size: 18, color: Color(0xFF94A3B8)),
+                      onPressed: () {
+                        _searchController.clear();
+                        setState(() {
+                          _searchQuery = '';
+                        });
+                      },
+                    )
+                  : null,
+              filled: true,
+              fillColor: Colors.white,
+              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: primarySelectionColor, width: 1.5),
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 8),
+
+          // Onglets de filtrage à couleur unique de sélection (primarySelectionColor)
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: _filterTabs.map((tab) {
+                final isSelected = _activeFilter == tab;
+                return Padding(
+                  padding: const EdgeInsets.only(right: 6.0),
+                  child: ChoiceChip(
+                    label: Text(tab),
+                    labelStyle: TextStyle(
+                      fontSize: 12,
+                      fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                      color: isSelected ? Colors.white : const Color(0xFF64748B),
+                    ),
+                    selected: isSelected,
+                    selectedColor: primarySelectionColor, // SEULE COULEUR POUR LES ÉLÉMENTS SÉLECTIONNÉS
+                    backgroundColor: Colors.white,
+                    side: BorderSide(
+                      color: isSelected ? primarySelectionColor : const Color(0xFFE2E8F0),
+                    ),
+                    showCheckmark: false,
+                    onSelected: (selected) {
+                      if (selected) {
+                        setState(() {
+                          _activeFilter = tab;
+                        });
+                      }
+                    },
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// État vide
   Widget _buildEmptyState() {
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.task_alt_rounded, size: 64, color: Colors.indigo.shade200),
-          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: primarySelectionColor.withValues(alpha: 0.08),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.task_alt_rounded,
+              size: 54,
+              color: primarySelectionColor,
+            ),
+          ),
+          const SizedBox(height: 14),
           const Text(
-            'Aucune tâche enregistrée !',
-            style: TextStyle(fontSize: 17, color: Color(0xFF475569), fontWeight: FontWeight.w600),
+            'Aucune tâche trouvée',
+            style: TextStyle(
+              fontSize: 16,
+              color: Color(0xFF334155),
+              fontWeight: FontWeight.bold,
+            ),
           ),
           const SizedBox(height: 4),
           const Text(
-            'Ajoutez-en une via la barre ci-dessus.',
-            style: TextStyle(fontSize: 14, color: Color(0xFF94A3B8)),
+            'Ajoutez-en une ci-dessus ou modifiez vos filtres.',
+            style: TextStyle(fontSize: 13, color: Color(0xFF94A3B8)),
           ),
         ],
       ),
     );
   }
 }
+
