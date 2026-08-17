@@ -751,8 +751,9 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final int totalCount = _tasks.length;
+    final int todoCount = _tasks.where((t) => t.status == 'À faire' && !t.isCompleted).length;
+    final int inProgressCount = _tasks.where((t) => t.status == 'En cours' && !t.isCompleted).length;
     final int completedCount = _tasks.where((t) => t.isCompleted || t.status == 'Terminée').length;
-    final int inProgressCount = totalCount - completedCount;
 
     return GestureDetector(
       // FERMETURE DU CLAVIER AU CLIC EN DEHORS
@@ -782,54 +783,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ),
 
-                // 2. BOUTONS INTERACTIFS DE FILTRAGE
-                Positioned(
-                  top: 14,
-                  bottom: 0,
-                  left: 0,
-                  right: 0,
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                    children: [
-                      // BOUTON 1 : TOUTES
-                      _buildDockNavItem(
-                        icon: Icons.format_list_bulleted_rounded,
-                        label: 'Toutes',
-                        isSelected: _activeFilter == 'Toutes',
-                        onTap: () => setState(() => _activeFilter = 'Toutes'),
-                      ),
-
-                      // BOUTON 2 : À FAIRE
-                      _buildDockNavItem(
-                        icon: Icons.radio_button_unchecked_rounded,
-                        label: 'À faire',
-                        isSelected: _activeFilter == 'À faire',
-                        onTap: () => setState(() => _activeFilter = 'À faire'),
-                      ),
-
-                      // ESPACE LIBÉRÉ RÉSERVÉ À L'ARC EN BAS
-                      const SizedBox(width: 58),
-
-                      // BOUTON 3 : EN COURS
-                      _buildDockNavItem(
-                        icon: Icons.hourglass_top_rounded,
-                        label: 'En cours',
-                        isSelected: _activeFilter == 'En cours',
-                        onTap: () => setState(() => _activeFilter = 'En cours'),
-                      ),
-
-                      // BOUTON 4 : TERMINÉE
-                      _buildDockNavItem(
-                        icon: Icons.check_circle_rounded,
-                        label: 'Terminée',
-                        isSelected: _activeFilter == 'Terminée',
-                        onTap: () => setState(() => _activeFilter = 'Terminée'),
-                      ),
-                    ],
-                  ),
-                ),
-
-                // 3. BOUTON D'AJOUT LOGÉ DE MANIÈRE HARMONIEUSE SUR L'ARC EN BAS
+                // 2. BOUTON D'AJOUT LOGÉ DE MANIÈRE HARMONIEUSE SUR L'ARC EN BAS
                 Positioned(
                   top: 0,
                   child: GestureDetector(
@@ -869,12 +823,15 @@ class _HomeScreenState extends State<HomeScreen> {
               : Column(
                   children: [
                     // 1. Header avec Gradient et Statistiques (Bulles cliquables)
-                    _buildModernHeader(totalCount, inProgressCount, completedCount),
+                    _buildModernHeader(totalCount, todoCount, inProgressCount, completedCount),
 
                     // 2. BARRE DE RECHERCHE FLOTTANTE UNIQUE EN HAUT
                     _buildTopFloatingSearchBar(),
 
-                    // 3. Liste des Tâches
+                    // 3. BARRE DE FILTRES SUPÉRIEURE
+                    _buildTopFilterBar(),
+
+                    // 4. Liste des Tâches
                     Expanded(
                       child: _filteredTasks.isEmpty
                           ? _buildEmptyState()
@@ -901,51 +858,107 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  /// Item interactif pour le Dock
-  Widget _buildDockNavItem({
+  /// BARRE DE FILTRES SUPÉRIEURE (Toutes, À faire, En cours, Terminée)
+  Widget _buildTopFilterBar() {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 4, 16, 10),
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: primarySelectionColor.withValues(alpha: 0.15),
+          width: 1,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: primarySelectionColor.withValues(alpha: 0.06),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        children: [
+          _buildTopFilterButton(
+            icon: Icons.format_list_bulleted_rounded,
+            label: 'Toutes',
+            isSelected: _activeFilter == 'Toutes',
+            onTap: () => setState(() => _activeFilter = 'Toutes'),
+          ),
+          _buildTopFilterButton(
+            icon: Icons.radio_button_unchecked_rounded,
+            label: 'À faire',
+            isSelected: _activeFilter == 'À faire',
+            onTap: () => setState(() => _activeFilter = 'À faire'),
+          ),
+          _buildTopFilterButton(
+            icon: Icons.hourglass_top_rounded,
+            label: 'En cours',
+            isSelected: _activeFilter == 'En cours',
+            onTap: () => setState(() => _activeFilter = 'En cours'),
+          ),
+          _buildTopFilterButton(
+            icon: Icons.check_circle_rounded,
+            label: 'Terminée',
+            isSelected: _activeFilter == 'Terminée',
+            onTap: () => setState(() => _activeFilter = 'Terminée'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Bouton individuel de la barre de filtres supérieure
+  Widget _buildTopFilterButton({
     required IconData icon,
     required String label,
     required bool isSelected,
     required VoidCallback onTap,
   }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 250),
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        decoration: BoxDecoration(
-          color: isSelected ? primarySelectionColor.withValues(alpha: 0.12) : Colors.transparent,
-          borderRadius: BorderRadius.circular(14),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              icon,
-              size: 20,
-              color: isSelected ? primarySelectionColor : const Color(0xFF94A3B8),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 10,
-                fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-                color: isSelected ? primarySelectionColor : const Color(0xFF64748B),
+    return Expanded(
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+          decoration: BoxDecoration(
+            color: isSelected ? primarySelectionColor : Colors.transparent,
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                icon,
+                size: 18,
+                color: isSelected ? Colors.white : const Color(0xFF64748B),
               ),
-            ),
-          ],
+              const SizedBox(height: 3),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                  color: isSelected ? Colors.white : const Color(0xFF64748B),
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 
   /// En-tête moderne avec gradient et indicateurs statistiques sous forme de bulles cliquables
-  Widget _buildModernHeader(int total, int inProgress, int completed) {
+  Widget _buildModernHeader(int total, int todo, int inProgress, int completed) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
       decoration: const BoxDecoration(
         gradient: LinearGradient(
           colors: [Color(0xFF3730A3), primarySelectionColor],
@@ -978,7 +991,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           const SizedBox(height: 14),
 
-          // Cards/Bulles de Statistiques désormais 100% Cliquables
+          // Cards/Bulles de Statistiques désormais 100% Cliquables (Total, À faire, En cours, Terminées)
           Row(
             children: [
               _buildStatChip(
@@ -987,14 +1000,21 @@ class _HomeScreenState extends State<HomeScreen> {
                 isSelected: _activeFilter == 'Toutes',
                 onTap: () => setState(() => _activeFilter = 'Toutes'),
               ),
-              const SizedBox(width: 10),
+              const SizedBox(width: 6),
+              _buildStatChip(
+                label: 'À faire',
+                value: todo.toString(),
+                isSelected: _activeFilter == 'À faire',
+                onTap: () => setState(() => _activeFilter = 'À faire'),
+              ),
+              const SizedBox(width: 6),
               _buildStatChip(
                 label: 'En cours',
                 value: inProgress.toString(),
                 isSelected: _activeFilter == 'En cours',
                 onTap: () => setState(() => _activeFilter = 'En cours'),
               ),
-              const SizedBox(width: 10),
+              const SizedBox(width: 6),
               _buildStatChip(
                 label: 'Terminées',
                 value: completed.toString(),
@@ -1021,7 +1041,7 @@ class _HomeScreenState extends State<HomeScreen> {
         borderRadius: BorderRadius.circular(14),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 220),
-          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 10),
+          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 6),
           decoration: BoxDecoration(
             color: isSelected ? Colors.white : Colors.white.withValues(alpha: 0.18),
             borderRadius: BorderRadius.circular(14),
@@ -1045,7 +1065,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 value,
                 style: TextStyle(
                   color: isSelected ? primarySelectionColor : Colors.white,
-                  fontSize: 16,
+                  fontSize: 15,
                   fontWeight: FontWeight.bold,
                 ),
               ),
@@ -1054,9 +1074,11 @@ class _HomeScreenState extends State<HomeScreen> {
                 label,
                 style: TextStyle(
                   color: isSelected ? primarySelectionColor : Colors.white.withValues(alpha: 0.95),
-                  fontSize: 11,
+                  fontSize: 10,
                   fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
                 ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
             ],
           ),
