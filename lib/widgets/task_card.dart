@@ -52,21 +52,34 @@ class TaskCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final bool isDone = task.isCompleted || task.status == 'Terminée';
     const Color primarySelectionColor = Color(0xFF4F46E5); // Couleur de sélection unifiée (Indigo)
+    final bool isDarkTheme = Theme.of(context).brightness == Brightness.dark;
+
+    final Color cardBg = isDarkTheme
+        ? (isDone ? const Color(0xFF1E293B).withValues(alpha: 0.6) : const Color(0xFF1E293B))
+        : (isDone ? Colors.white.withValues(alpha: 0.8) : Colors.white);
+
+    final Color borderColor = isDarkTheme
+        ? (isDone ? const Color(0xFF334155).withValues(alpha: 0.5) : const Color(0xFF334155))
+        : (isDone ? const Color(0xFFCBD5E1) : const Color(0xFFE2E8F0));
+
+    final Color titleColor = isDarkTheme
+        ? (isDone ? Colors.white38 : Colors.white)
+        : (isDone ? const Color(0xFF94A3B8) : const Color(0xFF1E293B));
 
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 6, horizontal: 16),
       decoration: BoxDecoration(
-        color: isDone ? Colors.white.withValues(alpha: 0.8) : Colors.white,
+        color: cardBg,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: isDone ? const Color(0xFFCBD5E1) : const Color(0xFFE2E8F0),
+          color: borderColor,
           width: 1,
         ),
         boxShadow: [
           BoxShadow(
             color: isDone
                 ? Colors.transparent
-                : primarySelectionColor.withValues(alpha: 0.05),
+                : primarySelectionColor.withValues(alpha: isDarkTheme ? 0.02 : 0.05),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -99,7 +112,7 @@ class TaskCard extends StatelessWidget {
                           borderRadius: BorderRadius.circular(6),
                         ),
                         side: BorderSide(
-                          color: isDone ? primarySelectionColor : const Color(0xFF94A3B8),
+                          color: isDone ? primarySelectionColor : (isDarkTheme ? Colors.white54 : const Color(0xFF94A3B8)),
                           width: 1.8,
                         ),
                       ),
@@ -116,8 +129,8 @@ class TaskCard extends StatelessWidget {
                           fontWeight: FontWeight.w600,
                           height: 1.3,
                           decoration: isDone ? TextDecoration.lineThrough : null,
-                          decorationColor: const Color(0xFF94A3B8),
-                          color: isDone ? const Color(0xFF94A3B8) : const Color(0xFF1E293B),
+                          decorationColor: isDarkTheme ? Colors.white38 : const Color(0xFF94A3B8),
+                          color: titleColor,
                         ),
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
@@ -126,9 +139,9 @@ class TaskCard extends StatelessWidget {
 
                     // MENU CONTEXTUEL : Remplace les 3 boutons d'action individuels pour un design épuré
                     PopupMenuButton<String>(
-                      icon: const Icon(
+                      icon: Icon(
                         Icons.more_vert_rounded,
-                        color: Color(0xFF64748B),
+                        color: isDarkTheme ? Colors.white60 : const Color(0xFF64748B),
                         size: 20,
                       ),
                       tooltip: 'Actions',
@@ -241,12 +254,12 @@ class TaskCard extends StatelessWidget {
                         decoration: BoxDecoration(
                           color: isDone
                               ? primarySelectionColor.withValues(alpha: 0.1)
-                              : const Color(0xFFF1F5F9),
+                              : (isDarkTheme ? const Color(0xFF334155) : const Color(0xFFF1F5F9)),
                           borderRadius: BorderRadius.circular(20),
                           border: Border.all(
                             color: isDone
                                 ? primarySelectionColor.withValues(alpha: 0.3)
-                                : const Color(0xFFCBD5E1),
+                                : (isDarkTheme ? const Color(0xFF475569) : const Color(0xFFCBD5E1)),
                             width: 1,
                           ),
                         ),
@@ -256,7 +269,7 @@ class TaskCard extends StatelessWidget {
                             Icon(
                               _getStatusIcon(task.status),
                               size: 12,
-                              color: isDone ? primarySelectionColor : const Color(0xFF64748B),
+                              color: isDone ? primarySelectionColor : (isDarkTheme ? Colors.white70 : const Color(0xFF64748B)),
                             ),
                             const SizedBox(width: 4),
                             Text(
@@ -264,7 +277,7 @@ class TaskCard extends StatelessWidget {
                               style: TextStyle(
                                 fontSize: 11,
                                 fontWeight: FontWeight.w600,
-                                color: isDone ? primarySelectionColor : const Color(0xFF475569),
+                                color: isDone ? primarySelectionColor : (isDarkTheme ? Colors.white70 : const Color(0xFF475569)),
                               ),
                             ),
                           ],

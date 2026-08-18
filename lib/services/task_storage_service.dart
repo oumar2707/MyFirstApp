@@ -1,74 +1,64 @@
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/task.dart';
+import 'auth_service.dart';
 
 // ============================================================================
 // FICHIER : lib/services/task_storage_service.dart
-// ROLE    : Gère la sauvegarde et le chargement des tâches sur le téléphone.
-// EXPLICATION DU FONCTIONNEMENT DE LA PERSISTANCE :
-// 
-// 1. SharedPreferences ne peut stocker directement que des types simples :
-//    (int, double, bool, String, List<String>).
-// 2. Comme nos tâches sont des objets complexes (Task), nous les convertissons
-//    en texte au format JSON (JavaScript Object Notation).
-// 
-// PROCESSUS DE SAUVEGARDE :
-//    Objet Task  --->  Map<String, dynamic> (toJson)  --->  Texte JSON (jsonEncode)  --->  SharedPreferences
-// 
-// PROCESSUS DE LECTURE :
-//    SharedPreferences  --->  Texte JSON  --->  Map<String, dynamic> (jsonDecode)  --->  Objet Task (Task.fromJson)
+// ROLE    : Gère la sauvegarde et le chargement des tâches ISOLÉES PAR UTILISATEUR.
+// EXPLICATION DU FONCTIONNEMENT :
+// Chaque utilisateur possède sa propre clé SharedPreferences `user_tasks_{userId}`.
+// Ainsi, la création d'un nouveau compte démarre toujours avec une liste vide.
 // ============================================================================
 
-
 class TaskStorageService {
-  // Clé unique utilisée dans SharedPreferences pour identifier notre liste de tâches
-  static const String _storageKey = 'my_todolist_tasks';
-
-  /// --------------------------------------------------------------------------
-  /// METHODE : saveTasks
-  /// ROLE    : Sauvegarde la liste de tâches courante sur le téléphone.
-  /// --------------------------------------------------------------------------
-  static Future<void> saveTasks(List<Task> tasks) async {
-    // 1. Obtenir l'instance de SharedPreferences (accès au stockage local de l'appareil)
-    final SharedPreferences prefs = await SharedPreferences.getInstance();
-
-    // 2. Transformer chaque objet Task en une chaîne de texte au format JSON
-    List<String> jsonList = tasks.map((task) {
-      // a) Convertir la Task en Dictionnaire/Map
-      Map<String, dynamic> map = task.toJson();
-      // b) Encoder le Map en texte JSON avec jsonEncode()
-      return jsonEncode(map);
-    }).toList();
-
-    // 3. Sauvegarder la liste de chaînes de caractères sous la clé '_storageKey'
-    await prefs.setStringList(_storageKey, jsonList);
+  /// Obtenir la clé de stockage spécifique à un utilisateur
+  static String _getUserStorageKey(String? userId) {
+    if (userId == null || userId.trim().isEmpty) {
+      return 'guest_todolist_tasks';
+    }
+    return 'user_tasks_${userId.trim()}';
   }
 
-  /// --------------------------------------------------------------------------
-  /// METHODE : loadTasks
-  /// ROLE    : Charge et restitue la liste des tâches sauvegardées.
-  /// --------------------------------------------------------------------------
-  static Future<List<Task>> loadTasks() async {
-    // 1. Obtenir l'instance de SharedPreferences
+  /// Sauvegarder les tâches pour un utilisateur spécifique
+  static Future<void> saveUserTasks(String? userId, List<Task> tasks) async {
     final SharedPreferences prefs = await SharedPreferences.getInstance();
+    final String key = _getUserStorageKey(userId);
 
-    // 2. Récupérer la liste de chaînes de texte sauvegardée
-    List<String>? jsonList = prefs.getStringList(_storageKey);
+    List<String> jsonList = tasks.map((task) {
+      return jsonEncode(task.toJson());
+    }).toList();
 
-    // 3. Si aucune donnée n'a été enregistrée auparavant, on renvoie une liste vide []
+    await prefs.setStringList(key, jsonList);
+  }
+
+  /// Charger les tâches spécifiques à un utilisateur
+  static Future<List<Task>> loadUserTasks(String? userId) async {
+    final SharedPreferences prefs = await SharedPreferences.getInstance();
+    await prefs.reload();
+    final String key = _getUserStorageKey(userId);
+
+    List<String>? jsonList = prefs.getStringList(key);
+
     if (jsonList == null || jsonList.isEmpty) {
       return [];
     }
 
-    // 4. Transformer chaque texte JSON en objet Task
-    List<Task> tasks = jsonList.map((jsonString) {
-      // a) Décoder le texte JSON pour obtenir un Map avec jsonDecode()
+    return jsonList.map((jsonString) {
       Map<String, dynamic> map = jsonDecode(jsonString) as Map<String, dynamic>;
-      // b) Reconstruire l'objet Task à partir du Map avec Task.fromJson()
       return Task.fromJson(map);
     }).toList();
+  }
 
-    // 5. Renvoyer la liste d'objets Task prêts à être affichés
-    return tasks;
+  /// Sauvegarder les tâches pour l'utilisateur actuellement connecté
+  static Future<void> saveTasks(List<Task> tasks) async {
+    final currentUser = await AuthService.getCurrentUser();
+    await saveUserTasks(currentUser?.id, tasks);
+  }
+
+  /// Charger les tâches pour l'utilisateur actuellement connecté
+  static Future<List<Task>> loadTasks() async {
+    final currentUser = await AuthService.getCurrentUser();
+    return await loadUserTasks(currentUser?.id);
   }
 }

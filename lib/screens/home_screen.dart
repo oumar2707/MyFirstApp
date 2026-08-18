@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
 import '../models/task.dart';
+import '../models/user_model.dart';
 import '../services/task_storage_service.dart';
+import '../services/auth_service.dart';
 import '../widgets/task_card.dart';
+import 'profile_screen.dart';
+import 'settings_screen.dart';
 
 /// ============================================================================
 /// FICHIER : lib/screens/home_screen.dart
@@ -131,6 +135,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
   List<Task> _tasks = [];
   bool _isLoading = true;
+  UserModel? _currentUser;
+  int _selectedTabIndex = 0; // 0: Tâches, 1: Profil, 2: Paramètres
 
   // Contrôleur pour la recherche
   final TextEditingController _searchController = TextEditingController();
@@ -145,7 +151,26 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    _loadSavedTasks();
+    _loadInitialUserData();
+  }
+
+  Future<void> _loadInitialUserData() async {
+    final user = await AuthService.getCurrentUser();
+    if (mounted) {
+      setState(() {
+        _currentUser = user;
+      });
+    }
+    await _loadSavedTasks();
+  }
+
+  Future<void> _loadCurrentUser() async {
+    final user = await AuthService.getCurrentUser();
+    if (mounted) {
+      setState(() {
+        _currentUser = user;
+      });
+    }
   }
 
   @override
@@ -154,23 +179,25 @@ class _HomeScreenState extends State<HomeScreen> {
     super.dispose();
   }
 
-  /// Chargement des tâches depuis SharedPreferences
+  /// Chargement des tâches depuis SharedPreferences pour l'utilisateur actuel
   Future<void> _loadSavedTasks() async {
-    List<Task> loadedTasks = await TaskStorageService.loadTasks();
-    setState(() {
-      _tasks = loadedTasks;
-      _isLoading = false;
-      _activeFilter = 'Toutes'; // Filtre "Toutes" garanti au démarrage
-    });
+    List<Task> loadedTasks = await TaskStorageService.loadUserTasks(_currentUser?.id);
+    if (mounted) {
+      setState(() {
+        _tasks = loadedTasks;
+        _isLoading = false;
+        _activeFilter = 'Toutes';
+      });
+    }
   }
 
-  /// Enregistrement local des tâches
+  /// Enregistrement local des tâches sous la clé de l'utilisateur actuel
   Future<void> _saveCurrentTasks() async {
-    await TaskStorageService.saveTasks(_tasks);
+    await TaskStorageService.saveUserTasks(_currentUser?.id, _tasks);
   }
 
-  /// Méthode d'ajout de tâche
-  void _addNewTask(String title, String priority, String status) {
+  /// Méthode d'ajout de tâche avec contrôle de doublon
+  bool _addNewTask(String title, String priority, String status) {
     final String cleanTitle = title.trim();
 
     if (cleanTitle.isEmpty) {
@@ -188,7 +215,30 @@ class _HomeScreenState extends State<HomeScreen> {
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         ),
       );
-      return;
+      return false;
+    }
+
+    // Vérification si une tâche avec le même nom existe déjà (insensible à la casse)
+    final bool isDuplicate = _tasks.any(
+      (t) => t.title.trim().toLowerCase() == cleanTitle.toLowerCase(),
+    );
+
+    if (isDuplicate) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Row(
+            children: [
+              Icon(Icons.warning_amber_rounded, color: Colors.white),
+              SizedBox(width: 8),
+              Expanded(child: Text('Une tâche avec ce titre existe déjà !')),
+            ],
+          ),
+          backgroundColor: const Color(0xFFEF4444),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+      );
+      return false;
     }
 
     final Task newTask = Task(
@@ -220,6 +270,8 @@ class _HomeScreenState extends State<HomeScreen> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
     );
+
+    return true;
   }
 
   /// Basculer l'état terminé
@@ -243,6 +295,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final TextEditingController bottomTitleController = TextEditingController();
     String bottomPriority = 'Moyenne';
     String bottomStatus = 'À faire';
+    String? sheetErrorMessage;
 
     showModalBottomSheet(
       context: context,
@@ -328,6 +381,13 @@ class _HomeScreenState extends State<HomeScreen> {
                         controller: bottomTitleController,
                         autofocus: true,
                         style: const TextStyle(fontSize: 15, color: Color(0xFF1E293B)),
+                        onChanged: (_) {
+                          if (sheetErrorMessage != null) {
+                            setSheetState(() {
+                              sheetErrorMessage = null;
+                            });
+                          }
+                        },
                         decoration: InputDecoration(
                           hintText: 'Que devez-vous accomplir ?',
                           hintStyle: const TextStyle(color: Color(0xFF94A3B8), fontSize: 14),
@@ -336,18 +396,57 @@ class _HomeScreenState extends State<HomeScreen> {
                           contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(14),
-                            borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                            borderSide: BorderSide(
+                              color: sheetErrorMessage != null ? const Color(0xFFEF4444) : const Color(0xFFE2E8F0),
+                              width: sheetErrorMessage != null ? 2 : 1,
+                            ),
                           ),
                           enabledBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(14),
-                            borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                            borderSide: BorderSide(
+                              color: sheetErrorMessage != null ? const Color(0xFFEF4444) : const Color(0xFFE2E8F0),
+                              width: sheetErrorMessage != null ? 2 : 1,
+                            ),
                           ),
                           focusedBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(14),
-                            borderSide: const BorderSide(color: primarySelectionColor, width: 2),
+                            borderSide: BorderSide(
+                              color: sheetErrorMessage != null ? const Color(0xFFEF4444) : primarySelectionColor,
+                              width: 2,
+                            ),
                           ),
                         ),
                       ),
+
+                      // Signal d'erreur visuel
+                      if (sheetErrorMessage != null) ...[
+                        const SizedBox(height: 10),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFEE2E2),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: const Color(0xFFFCA5A5)),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.warning_amber_rounded, color: Color(0xFFDC2626), size: 20),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  sheetErrorMessage!,
+                                  style: const TextStyle(
+                                    color: Color(0xFFDC2626),
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+
                       const SizedBox(height: 18),
 
                       // Priorité
@@ -424,12 +523,34 @@ class _HomeScreenState extends State<HomeScreen> {
                         height: 50,
                         child: ElevatedButton.icon(
                           onPressed: () {
-                            _addNewTask(
-                              bottomTitleController.text,
+                            final String rawTitle = bottomTitleController.text.trim();
+                            if (rawTitle.isEmpty) {
+                              setSheetState(() {
+                                sheetErrorMessage = 'Veuillez entrer le titre de la tâche.';
+                              });
+                              return;
+                            }
+
+                            // Vérification d'unicité directement avant d'ajouter
+                            final bool isDuplicate = _tasks.any(
+                              (t) => t.title.trim().toLowerCase() == rawTitle.toLowerCase(),
+                            );
+
+                            if (isDuplicate) {
+                              setSheetState(() {
+                                sheetErrorMessage = 'Une tâche intitulée "$rawTitle" existe déjà !';
+                              });
+                              return;
+                            }
+
+                            final bool isAdded = _addNewTask(
+                              rawTitle,
                               bottomPriority,
                               bottomStatus,
                             );
-                            Navigator.of(sheetContext).pop();
+                            if (isAdded) {
+                              Navigator.of(sheetContext).pop();
+                            }
                           },
                           icon: const Icon(Icons.check_rounded, size: 22),
                           label: const Text(
@@ -460,10 +581,10 @@ class _HomeScreenState extends State<HomeScreen> {
 
   /// Dialogue de modification
   void _showEditDialog(Task task) {
-    final TextEditingController editTitleController =
-        TextEditingController(text: task.title);
+    final TextEditingController editTitleController = TextEditingController(text: task.title);
     String editPriority = task.priority;
     String editStatus = task.status;
+    String? editErrorMessage;
 
     showDialog(
       context: context,
@@ -490,20 +611,69 @@ class _HomeScreenState extends State<HomeScreen> {
                     children: [
                       TextField(
                         controller: editTitleController,
+                        onChanged: (_) {
+                          if (editErrorMessage != null) {
+                            setDialogState(() {
+                              editErrorMessage = null;
+                            });
+                          }
+                        },
                         decoration: InputDecoration(
                           labelText: 'Titre de la tâche',
                           filled: true,
                           fillColor: const Color(0xFFF8FAFC),
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(color: Color(0xFFCBD5E1)),
+                            borderSide: BorderSide(
+                              color: editErrorMessage != null ? const Color(0xFFEF4444) : const Color(0xFFCBD5E1),
+                              width: editErrorMessage != null ? 2 : 1,
+                            ),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(
+                              color: editErrorMessage != null ? const Color(0xFFEF4444) : const Color(0xFFCBD5E1),
+                              width: editErrorMessage != null ? 2 : 1,
+                            ),
                           ),
                           focusedBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(color: primarySelectionColor, width: 2),
+                            borderSide: BorderSide(
+                              color: editErrorMessage != null ? const Color(0xFFEF4444) : primarySelectionColor,
+                              width: 2,
+                            ),
                           ),
                         ),
                       ),
+
+                      if (editErrorMessage != null) ...[
+                        const SizedBox(height: 10),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFEE2E2),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: const Color(0xFFFCA5A5)),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.warning_amber_rounded, color: Color(0xFFDC2626), size: 18),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  editErrorMessage!,
+                                  style: const TextStyle(
+                                    color: Color(0xFFDC2626),
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+
                       const SizedBox(height: 16),
 
                       const Text(
@@ -586,25 +756,44 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                     onPressed: () {
                       final String newTitle = editTitleController.text.trim();
-                      if (newTitle.isNotEmpty) {
-                        setState(() {
-                          task.title = newTitle;
-                          task.priority = editPriority;
-                          task.status = editStatus;
-                          task.isCompleted = editStatus == 'Terminée';
+                      if (newTitle.isEmpty) {
+                        setDialogState(() {
+                          editErrorMessage = 'Veuillez entrer le titre de la tâche.';
                         });
-                        _saveCurrentTasks();
-                        Navigator.of(dialogContext).pop();
-
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: const Text('Tâche modifiée avec succès !'),
-                            backgroundColor: primarySelectionColor,
-                            behavior: SnackBarBehavior.floating,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                          ),
-                        );
+                        return;
                       }
+
+                      // Contrôle de doublon uniquement si le titre a changé
+                      if (newTitle.toLowerCase() != task.title.trim().toLowerCase()) {
+                        final bool isDuplicate = _tasks.any(
+                          (t) => t != task && t.id != task.id && t.title.trim().toLowerCase() == newTitle.toLowerCase(),
+                        );
+
+                        if (isDuplicate) {
+                          setDialogState(() {
+                            editErrorMessage = 'Une autre tâche s\'intitule déjà "$newTitle" !';
+                          });
+                          return;
+                        }
+                      }
+
+                      setState(() {
+                        task.title = newTitle;
+                        task.priority = editPriority;
+                        task.status = editStatus;
+                        task.isCompleted = editStatus == 'Terminée';
+                      });
+                      _saveCurrentTasks();
+                      Navigator.of(dialogContext).pop();
+
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: const Text('Tâche modifiée avec succès !'),
+                          backgroundColor: primarySelectionColor,
+                          behavior: SnackBarBehavior.floating,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        ),
+                      );
                     },
                     child: const Text('Enregistrer'),
                   ),
@@ -754,6 +943,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final int todoCount = _tasks.where((t) => t.status == 'À faire' && !t.isCompleted).length;
     final int inProgressCount = _tasks.where((t) => t.status == 'En cours' && !t.isCompleted).length;
     final int completedCount = _tasks.where((t) => t.isCompleted || t.status == 'Terminée').length;
+    final bool isDarkTheme = Theme.of(context).brightness == Brightness.dark;
 
     return GestureDetector(
       // FERMETURE DU CLAVIER AU CLIC EN DEHORS
@@ -762,7 +952,7 @@ class _HomeScreenState extends State<HomeScreen> {
       },
       behavior: HitTestBehavior.translucent,
       child: Scaffold(
-        backgroundColor: const Color(0xFFF8FAFC),
+        backgroundColor: isDarkTheme ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
 
         // DOCK INFÉRIEUR FLOTTANT AVEC ARC EN BAS (CONCAVE)
         bottomNavigationBar: Padding(
@@ -777,13 +967,48 @@ class _HomeScreenState extends State<HomeScreen> {
                 CustomPaint(
                   size: const Size(double.infinity, 68),
                   painter: DownwardNotchedDockPainter(
-                    color: Colors.white,
-                    borderColor: primarySelectionColor.withValues(alpha: 0.18),
-                    shadowColor: primarySelectionColor.withValues(alpha: 0.22),
+                    color: isDarkTheme ? const Color(0xFF1E293B) : Colors.white,
+                    borderColor: isDarkTheme ? const Color(0xFF334155) : primarySelectionColor.withValues(alpha: 0.18),
+                    shadowColor: primarySelectionColor.withValues(alpha: isDarkTheme ? 0.08 : 0.22),
                   ),
                 ),
 
-                // 2. BOUTON D'AJOUT LOGÉ DE MANIÈRE HARMONIEUSE SUR L'ARC EN BAS
+                // 2. BOUTONS D'ONGLETS DU DOCK (Tâches, Profil, Paramètres)
+                Positioned(
+                  top: 12,
+                  bottom: 0,
+                  left: 0,
+                  right: 0,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      _buildDockTabItem(
+                        icon: Icons.task_alt_rounded,
+                        label: 'Tâches',
+                        isSelected: _selectedTabIndex == 0,
+                        onTap: () => setState(() => _selectedTabIndex = 0),
+                        isDarkTheme: isDarkTheme,
+                      ),
+                      _buildDockTabItem(
+                        icon: Icons.person_rounded,
+                        label: 'Profil',
+                        isSelected: _selectedTabIndex == 1,
+                        onTap: () => setState(() => _selectedTabIndex = 1),
+                        isDarkTheme: isDarkTheme,
+                      ),
+                      const SizedBox(width: 58),
+                      _buildDockTabItem(
+                        icon: Icons.settings_rounded,
+                        label: 'Paramètres',
+                        isSelected: _selectedTabIndex == 2,
+                        onTap: () => setState(() => _selectedTabIndex = 2),
+                        isDarkTheme: isDarkTheme,
+                      ),
+                    ],
+                  ),
+                ),
+
+                // 3. BOUTON D'AJOUT LOGÉ DE MANIÈRE HARMONIEUSE SUR L'ARC EN BAS
                 Positioned(
                   top: 0,
                   child: GestureDetector(
@@ -820,36 +1045,55 @@ class _HomeScreenState extends State<HomeScreen> {
               ? const Center(
                   child: CircularProgressIndicator(color: primarySelectionColor),
                 )
-              : Column(
+              : IndexedStack(
+                  index: _selectedTabIndex,
                   children: [
-                    // 1. Header avec Gradient et Statistiques (Bulles cliquables)
-                    _buildModernHeader(totalCount, todoCount, inProgressCount, completedCount),
+                    // ONGLET 0 : TÂCHES
+                    Column(
+                      children: [
+                        // 1. Header avec Gradient et Statistiques (Bulles cliquables - Filtre unique)
+                        _buildModernHeader(totalCount, todoCount, inProgressCount, completedCount),
 
-                    // 2. BARRE DE RECHERCHE FLOTTANTE UNIQUE EN HAUT
-                    _buildTopFloatingSearchBar(),
+                        // 2. BARRE DE RECHERCHE FLOTTANTE UNIQUE EN HAUT
+                        _buildTopFloatingSearchBar(isDarkTheme),
 
-                    // 3. BARRE DE FILTRES SUPÉRIEURE
-                    _buildTopFilterBar(),
+                        // 3. Liste des Tâches
+                        Expanded(
+                          child: _filteredTasks.isEmpty
+                              ? _buildEmptyState(isDarkTheme)
+                              : ListView.builder(
+                                  itemCount: _filteredTasks.length,
+                                  keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+                                  padding: const EdgeInsets.only(top: 8, bottom: 20),
+                                  itemBuilder: (context, index) {
+                                    final task = _filteredTasks[index];
+                                    return TaskCard(
+                                      task: task,
+                                      onToggleCompleted: (value) => _toggleTaskCompleted(task, value),
+                                      onView: () => _showTaskDetails(task),
+                                      onEdit: () => _showEditDialog(task),
+                                      onDelete: () => _confirmDeleteTask(task),
+                                    );
+                                  },
+                                ),
+                        ),
+                      ],
+                    ),
 
-                    // 4. Liste des Tâches
-                    Expanded(
-                      child: _filteredTasks.isEmpty
-                          ? _buildEmptyState()
-                          : ListView.builder(
-                              itemCount: _filteredTasks.length,
-                              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-                              padding: const EdgeInsets.only(top: 8, bottom: 20),
-                              itemBuilder: (context, index) {
-                                final task = _filteredTasks[index];
-                                return TaskCard(
-                                  task: task,
-                                  onToggleCompleted: (value) => _toggleTaskCompleted(task, value),
-                                  onView: () => _showTaskDetails(task),
-                                  onEdit: () => _showEditDialog(task),
-                                  onDelete: () => _confirmDeleteTask(task),
-                                );
-                              },
-                            ),
+                    // ONGLET 1 : PROFIL
+                    ProfileScreen(
+                      user: _currentUser,
+                      tasks: _tasks,
+                      onProfileUpdated: _loadCurrentUser,
+                    ),
+
+                    // ONGLET 2 : PARAMÈTRES
+                    SettingsScreen(
+                      onTasksCleared: () {
+                        setState(() {
+                          _tasks = [];
+                        });
+                      },
                     ),
                   ],
                 ),
@@ -858,101 +1102,48 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  /// BARRE DE FILTRES SUPÉRIEURE (Toutes, À faire, En cours, Terminée)
-  Widget _buildTopFilterBar() {
-    return Container(
-      margin: const EdgeInsets.fromLTRB(16, 4, 16, 10),
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: primarySelectionColor.withValues(alpha: 0.15),
-          width: 1,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: primarySelectionColor.withValues(alpha: 0.06),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-        children: [
-          _buildTopFilterButton(
-            icon: Icons.format_list_bulleted_rounded,
-            label: 'Toutes',
-            isSelected: _activeFilter == 'Toutes',
-            onTap: () => setState(() => _activeFilter = 'Toutes'),
-          ),
-          _buildTopFilterButton(
-            icon: Icons.radio_button_unchecked_rounded,
-            label: 'À faire',
-            isSelected: _activeFilter == 'À faire',
-            onTap: () => setState(() => _activeFilter = 'À faire'),
-          ),
-          _buildTopFilterButton(
-            icon: Icons.hourglass_top_rounded,
-            label: 'En cours',
-            isSelected: _activeFilter == 'En cours',
-            onTap: () => setState(() => _activeFilter = 'En cours'),
-          ),
-          _buildTopFilterButton(
-            icon: Icons.check_circle_rounded,
-            label: 'Terminée',
-            isSelected: _activeFilter == 'Terminée',
-            onTap: () => setState(() => _activeFilter = 'Terminée'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// Bouton individuel de la barre de filtres supérieure
-  Widget _buildTopFilterButton({
+  /// Item interactif pour les onglets du Dock Inférieur (Tâches, Profil, Paramètres)
+  Widget _buildDockTabItem({
     required IconData icon,
     required String label,
     required bool isSelected,
     required VoidCallback onTap,
+    required bool isDarkTheme,
   }) {
-    return Expanded(
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(14),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
-          decoration: BoxDecoration(
-            color: isSelected ? primarySelectionColor : Colors.transparent,
-            borderRadius: BorderRadius.circular(14),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                icon,
-                size: 18,
-                color: isSelected ? Colors.white : const Color(0xFF64748B),
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        decoration: BoxDecoration(
+          color: isSelected ? primarySelectionColor.withValues(alpha: 0.12) : Colors.transparent,
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              size: 20,
+              color: isSelected ? primarySelectionColor : (isDarkTheme ? Colors.white60 : const Color(0xFF94A3B8)),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                color: isSelected ? primarySelectionColor : (isDarkTheme ? Colors.white60 : const Color(0xFF64748B)),
               ),
-              const SizedBox(height: 3),
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-                  color: isSelected ? Colors.white : const Color(0xFF64748B),
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
   }
+
+
 
   /// En-tête moderne avec gradient et indicateurs statistiques sous forme de bulles cliquables
   Widget _buildModernHeader(int total, int todo, int inProgress, int completed) {
@@ -1088,25 +1279,25 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   /// BARRE DE RECHERCHE FLOTTANTE UNIQUE EN HAUT
-  Widget _buildTopFloatingSearchBar() {
+  Widget _buildTopFloatingSearchBar(bool isDarkTheme) {
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 14, 16, 8),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: isDarkTheme ? const Color(0xFF1E293B) : Colors.white,
         borderRadius: BorderRadius.circular(24),
         border: Border.all(
-          color: primarySelectionColor.withValues(alpha: 0.18),
+          color: isDarkTheme ? const Color(0xFF334155) : primarySelectionColor.withValues(alpha: 0.18),
           width: 1.5,
         ),
         boxShadow: [
           BoxShadow(
-            color: primarySelectionColor.withValues(alpha: 0.15),
+            color: primarySelectionColor.withValues(alpha: isDarkTheme ? 0.05 : 0.15),
             blurRadius: 20,
             spreadRadius: 1,
             offset: const Offset(0, 8),
           ),
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
+            color: Colors.black.withValues(alpha: isDarkTheme ? 0.2 : 0.04),
             blurRadius: 10,
             offset: const Offset(0, 2),
           ),
@@ -1120,14 +1311,18 @@ class _HomeScreenState extends State<HomeScreen> {
             _searchQuery = value;
           });
         },
-        style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500, color: Color(0xFF1E293B)),
+        style: TextStyle(
+          fontSize: 15,
+          fontWeight: FontWeight.w500,
+          color: isDarkTheme ? Colors.white : const Color(0xFF1E293B),
+        ),
         decoration: InputDecoration(
           hintText: 'Rechercher une tâche...',
-          hintStyle: const TextStyle(color: Color(0xFF94A3B8), fontSize: 14),
+          hintStyle: TextStyle(color: isDarkTheme ? Colors.white54 : const Color(0xFF94A3B8), fontSize: 14),
           prefixIcon: const Icon(Icons.search_rounded, color: primarySelectionColor, size: 24),
           suffixIcon: _searchQuery.isNotEmpty
               ? IconButton(
-                  icon: const Icon(Icons.clear_rounded, size: 20, color: Color(0xFF94A3B8)),
+                  icon: Icon(Icons.clear_rounded, size: 20, color: isDarkTheme ? Colors.white54 : const Color(0xFF94A3B8)),
                   onPressed: () {
                     _searchController.clear();
                     setState(() {
@@ -1146,7 +1341,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   /// État vide
-  Widget _buildEmptyState() {
+  Widget _buildEmptyState(bool isDarkTheme) {
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -1154,7 +1349,7 @@ class _HomeScreenState extends State<HomeScreen> {
           Container(
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              color: primarySelectionColor.withValues(alpha: 0.08),
+              color: primarySelectionColor.withValues(alpha: 0.12),
               shape: BoxShape.circle,
             ),
             child: const Icon(
@@ -1164,18 +1359,18 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
           const SizedBox(height: 14),
-          const Text(
+          Text(
             'Aucune tâche trouvée',
             style: TextStyle(
               fontSize: 16,
-              color: Color(0xFF334155),
+              color: isDarkTheme ? Colors.white70 : const Color(0xFF334155),
               fontWeight: FontWeight.bold,
             ),
           ),
           const SizedBox(height: 4),
-          const Text(
+          Text(
             'Ajoutez-en une via le bouton central ci-dessous.',
-            style: TextStyle(fontSize: 13, color: Color(0xFF94A3B8)),
+            style: TextStyle(fontSize: 13, color: isDarkTheme ? Colors.white54 : const Color(0xFF94A3B8)),
           ),
         ],
       ),

@@ -38,6 +38,9 @@ dependencies:
   # Package pour la sauvegarde locale des données (persistance)
   shared_preferences: ^2.3.2
 
+  # Package officiel pour la sélection de photos depuis la galerie
+  image_picker: ^1.1.2
+
 
 dev_dependencies:
   flutter_test:
