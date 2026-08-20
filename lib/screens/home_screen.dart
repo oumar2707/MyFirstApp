@@ -9,118 +9,9 @@ import 'settings_screen.dart';
 
 /// ============================================================================
 /// FICHIER : lib/screens/home_screen.dart
-/// ROLE    : Écran principal (Barre de recherche flottante & Bulles de stats cliquables)
-/// CHARTE  : Indigo #4F46E5, Filtre par défaut "Toutes", Bulles interactives.
+/// ROLE    : Écran principal (Barre de recherche flottante & Barre inférieure pleine largeur style YouTube)
+/// CHARTE  : Indigo #4F46E5, Barre inférieure occupant tout l'espace bas.
 /// ============================================================================
-
-/// Peintre sur-mesure dessinant un arc concave vers le bas dans lequel s'insère le bouton central
-class DownwardNotchedDockPainter extends CustomPainter {
-  final Color color;
-  final Color borderColor;
-  final Color shadowColor;
-
-  DownwardNotchedDockPainter({
-    required this.color,
-    required this.borderColor,
-    required this.shadowColor,
-  });
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final double baseTop = 14.0;      // Ligne du haut de la barre
-    final double cornerR = 24.0;     // Arrondi des coins
-    final double c = size.width / 2; // Centre X
-    final double notchR = 28.0;      // Rayon de l'arc concave (vers le bas)
-    const double fillet = 14.0;      // Raccordement fluide
-
-    final Path path = Path();
-
-    // 1. Coin haut-gauche
-    path.moveTo(cornerR, baseTop);
-
-    // 2. Ligne supérieure gauche vers l'encoche
-    path.lineTo(c - notchR - fillet, baseTop);
-
-    // 3. Raccordement adouci vers l'arc en bas
-    path.cubicTo(
-      c - notchR - (fillet * 0.5), baseTop,
-      c - notchR, baseTop + 4,
-      c - notchR, baseTop + 12,
-    );
-
-    // 4. ARC ORIENTÉ VERS LE BAS (CONCAVE) ENVELOPPANT LE BOUTON
-    path.arcToPoint(
-      Offset(c + notchR, baseTop + 12),
-      radius: Radius.circular(notchR),
-      clockwise: false, // Incurvé vers le bas
-    );
-
-    // 5. Raccordement adouci remontant de l'encoche
-    path.cubicTo(
-      c + notchR, baseTop + 4,
-      c + notchR + (fillet * 0.5), baseTop,
-      c + notchR + fillet, baseTop,
-    );
-
-    // 6. Ligne supérieure droite
-    path.lineTo(size.width - cornerR, baseTop);
-
-    // 7. Coin haut-droit
-    path.arcToPoint(
-      Offset(size.width, baseTop + cornerR),
-      radius: Radius.circular(cornerR),
-    );
-
-    // 8. Côté droit
-    path.lineTo(size.width, size.height - cornerR);
-
-    // 9. Coin bas-droit
-    path.arcToPoint(
-      Offset(size.width - cornerR, size.height),
-      radius: Radius.circular(cornerR),
-    );
-
-    // 10. Ligne inférieure
-    path.lineTo(cornerR, size.height);
-
-    // 11. Coin bas-gauche
-    path.arcToPoint(
-      Offset(0, size.height - cornerR),
-      radius: Radius.circular(cornerR),
-    );
-
-    // 12. Côté gauche
-    path.lineTo(0, baseTop + cornerR);
-
-    // 13. Coin haut-gauche
-    path.arcToPoint(
-      Offset(cornerR, baseTop),
-      radius: Radius.circular(cornerR),
-    );
-
-    // Ombre portée sous la barre et l'encoche
-    final Paint shadowPaint = Paint()
-      ..color = shadowColor
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 14);
-    canvas.drawPath(path.shift(const Offset(0, 5)), shadowPaint);
-
-    // Fond blanc
-    final Paint fillPaint = Paint()
-      ..color = color
-      ..style = PaintingStyle.fill;
-    canvas.drawPath(path, fillPaint);
-
-    // Bordure Indigo fine
-    final Paint borderPaint = Paint()
-      ..color = borderColor
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.5;
-    canvas.drawPath(path, borderPaint);
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
-}
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -136,7 +27,7 @@ class _HomeScreenState extends State<HomeScreen> {
   List<Task> _tasks = [];
   bool _isLoading = true;
   UserModel? _currentUser;
-  int _selectedTabIndex = 0; // 0: Tâches, 1: Profil, 2: Paramètres
+  int _selectedTabIndex = 0; // 0: Tâches, 1: Stats, 2: Profil, 3: Paramètres
 
   // Contrôleur pour la recherche
   final TextEditingController _searchController = TextEditingController();
@@ -954,88 +845,103 @@ class _HomeScreenState extends State<HomeScreen> {
       child: Scaffold(
         backgroundColor: isDarkTheme ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
 
-        // DOCK INFÉRIEUR FLOTTANT AVEC ARC EN BAS (CONCAVE)
-        bottomNavigationBar: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-          child: SizedBox(
-            height: 68,
-            child: Stack(
-              alignment: Alignment.center,
-              clipBehavior: Clip.none,
-              children: [
-                // 1. FOND DE LA BARRE AVEC L'ARC EN BAS SUR-MESURE
-                CustomPaint(
-                  size: const Size(double.infinity, 68),
-                  painter: DownwardNotchedDockPainter(
-                    color: isDarkTheme ? const Color(0xFF1E293B) : Colors.white,
-                    borderColor: isDarkTheme ? const Color(0xFF334155) : primarySelectionColor.withValues(alpha: 0.18),
-                    shadowColor: primarySelectionColor.withValues(alpha: isDarkTheme ? 0.08 : 0.22),
+        // BARRE INFÉRIEURE STYLE YOUTUBE (PLEINE LARGEUR OCCUPANT TOUT L'ESPACE EN BAS)
+        bottomNavigationBar: Container(
+          width: double.infinity,
+          decoration: BoxDecoration(
+            color: isDarkTheme ? const Color(0xFF1E293B) : Colors.white,
+            border: Border(
+              top: BorderSide(
+                color: isDarkTheme ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
+                width: 1.0,
+              ),
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: isDarkTheme ? 0.3 : 0.06),
+                blurRadius: 8,
+                offset: const Offset(0, -2),
+              ),
+            ],
+          ),
+          child: SafeArea(
+            top: false,
+            child: SizedBox(
+              height: 64,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                children: [
+                  // 1. TÂCHES
+                  _buildYouTubeNavItem(
+                    icon: _selectedTabIndex == 0 ? Icons.task_alt_rounded : Icons.task_alt_outlined,
+                    label: 'Tâches',
+                    isSelected: _selectedTabIndex == 0,
+                    onTap: () => setState(() => _selectedTabIndex = 0),
+                    isDarkTheme: isDarkTheme,
                   ),
-                ),
 
-                // 2. BOUTONS D'ONGLETS DU DOCK (Tâches, Profil, Paramètres)
-                Positioned(
-                  top: 12,
-                  bottom: 0,
-                  left: 0,
-                  right: 0,
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                    children: [
-                      _buildDockTabItem(
-                        icon: Icons.task_alt_rounded,
-                        label: 'Tâches',
-                        isSelected: _selectedTabIndex == 0,
-                        onTap: () => setState(() => _selectedTabIndex = 0),
-                        isDarkTheme: isDarkTheme,
-                      ),
-                      _buildDockTabItem(
-                        icon: Icons.person_rounded,
-                        label: 'Profil',
-                        isSelected: _selectedTabIndex == 1,
-                        onTap: () => setState(() => _selectedTabIndex = 1),
-                        isDarkTheme: isDarkTheme,
-                      ),
-                      const SizedBox(width: 58),
-                      _buildDockTabItem(
-                        icon: Icons.settings_rounded,
-                        label: 'Paramètres',
-                        isSelected: _selectedTabIndex == 2,
-                        onTap: () => setState(() => _selectedTabIndex = 2),
-                        isDarkTheme: isDarkTheme,
-                      ),
-                    ],
+                  // 2. STATS
+                  _buildYouTubeNavItem(
+                    icon: _selectedTabIndex == 1 ? Icons.bar_chart_rounded : Icons.bar_chart_outlined,
+                    label: 'Stats',
+                    isSelected: _selectedTabIndex == 1,
+                    onTap: () => setState(() => _selectedTabIndex = 1),
+                    isDarkTheme: isDarkTheme,
                   ),
-                ),
 
-                // 3. BOUTON D'AJOUT LOGÉ DE MANIÈRE HARMONIEUSE SUR L'ARC EN BAS
-                Positioned(
-                  top: 0,
-                  child: GestureDetector(
-                    onTap: _showAddTaskBottomSheet,
-                    child: Container(
-                      width: 48,
-                      height: 48,
-                      decoration: BoxDecoration(
-                        color: primarySelectionColor,
-                        shape: BoxShape.circle,
-                        boxShadow: [
-                          BoxShadow(
-                            color: primarySelectionColor.withValues(alpha: 0.4),
-                            blurRadius: 10,
-                            offset: const Offset(0, 4),
+                  // 3. BOUTON (+) CENTRAL AU BEAU MILIEU (AGRANDI LÉGÈREMENT)
+                  Expanded(
+                    child: InkWell(
+                      onTap: _showAddTaskBottomSheet,
+                      splashColor: primarySelectionColor.withValues(alpha: 0.1),
+                      highlightColor: Colors.transparent,
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Container(
+                            width: 48,
+                            height: 48,
+                            decoration: BoxDecoration(
+                              color: primarySelectionColor,
+                              shape: BoxShape.circle,
+                              boxShadow: [
+                                BoxShadow(
+                                  color: primarySelectionColor.withValues(alpha: 0.35),
+                                  blurRadius: 10,
+                                  offset: const Offset(0, 4),
+                                ),
+                              ],
+                            ),
+                            child: const Icon(
+                              Icons.add_rounded,
+                              color: Colors.white,
+                              size: 32,
+                            ),
                           ),
                         ],
                       ),
-                      child: const Icon(
-                        Icons.add_rounded,
-                        color: Colors.white,
-                        size: 28,
-                      ),
                     ),
                   ),
-                ),
-              ],
+
+                  // 4. PROFIL
+                  _buildYouTubeNavItem(
+                    icon: _selectedTabIndex == 2 ? Icons.person_rounded : Icons.person_outline_rounded,
+                    label: 'Profil',
+                    isSelected: _selectedTabIndex == 2,
+                    onTap: () => setState(() => _selectedTabIndex = 2),
+                    isDarkTheme: isDarkTheme,
+                  ),
+
+                  // 5. PARAMÈTRES
+                  _buildYouTubeNavItem(
+                    icon: _selectedTabIndex == 3 ? Icons.settings_rounded : Icons.settings_outlined,
+                    label: 'Paramètres',
+                    isSelected: _selectedTabIndex == 3,
+                    onTap: () => setState(() => _selectedTabIndex = 3),
+                    isDarkTheme: isDarkTheme,
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -1080,14 +986,17 @@ class _HomeScreenState extends State<HomeScreen> {
                       ],
                     ),
 
-                    // ONGLET 1 : PROFIL
+                    // ONGLET 1 : STATS
+                    _buildStatsView(isDarkTheme),
+
+                    // ONGLET 2 : PROFIL
                     ProfileScreen(
                       user: _currentUser,
                       tasks: _tasks,
                       onProfileUpdated: _loadCurrentUser,
                     ),
 
-                    // ONGLET 2 : PARAMÈTRES
+                    // ONGLET 3 : PARAMÈTRES
                     SettingsScreen(
                       onTasksCleared: () {
                         setState(() {
@@ -1102,39 +1011,37 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  /// Item interactif pour les onglets du Dock Inférieur (Tâches, Profil, Paramètres)
-  Widget _buildDockTabItem({
+  /// Item interactif style YouTube pour la barre de navigation inférieure
+  Widget _buildYouTubeNavItem({
     required IconData icon,
     required String label,
     required bool isSelected,
     required VoidCallback onTap,
     required bool isDarkTheme,
   }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-        decoration: BoxDecoration(
-          color: isSelected ? primarySelectionColor.withValues(alpha: 0.12) : Colors.transparent,
-          borderRadius: BorderRadius.circular(14),
-        ),
+    final Color activeColor = primarySelectionColor;
+    final Color inactiveColor = isDarkTheme ? const Color(0xFF94A3B8) : const Color(0xFF64748B);
+
+    return Expanded(
+      child: InkWell(
+        onTap: onTap,
+        splashColor: primarySelectionColor.withValues(alpha: 0.08),
+        highlightColor: Colors.transparent,
         child: Column(
-          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(
               icon,
-              size: 20,
-              color: isSelected ? primarySelectionColor : (isDarkTheme ? Colors.white60 : const Color(0xFF94A3B8)),
+              size: 24,
+              color: isSelected ? activeColor : inactiveColor,
             ),
-            const SizedBox(height: 2),
+            const SizedBox(height: 3),
             Text(
               label,
               style: TextStyle(
                 fontSize: 11,
                 fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-                color: isSelected ? primarySelectionColor : (isDarkTheme ? Colors.white60 : const Color(0xFF64748B)),
+                color: isSelected ? activeColor : inactiveColor,
               ),
             ),
           ],
@@ -1374,6 +1281,198 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  /// Vue des Statistiques et de la Progression (Onglet 1)
+  Widget _buildStatsView(bool isDarkTheme) {
+    final int total = _tasks.length;
+    final int completed = _tasks.where((t) => t.isCompleted || t.status == 'Terminée').length;
+    final int inProgress = _tasks.where((t) => t.status == 'En cours' && !t.isCompleted).length;
+    final int todo = _tasks.where((t) => t.status == 'À faire' && !t.isCompleted).length;
+    final double completionPercentage = total > 0 ? (completed / total) : 0.0;
+
+    final int highPriority = _tasks.where((t) => t.priority == 'Haute').length;
+    final int mediumPriority = _tasks.where((t) => t.priority == 'Moyenne').length;
+    final int lowPriority = _tasks.where((t) => t.priority == 'Basse').length;
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // En-tête de la page Statistiques
+          Row(
+            children: [
+              const Icon(Icons.bar_chart_rounded, color: primarySelectionColor, size: 28),
+              const SizedBox(width: 10),
+              Text(
+                'Statistiques & Progression',
+                style: TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                  color: isDarkTheme ? Colors.white : const Color(0xFF1E293B),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+
+          // Carte de progression globale
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Color(0xFF3730A3), primarySelectionColor],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: [
+                BoxShadow(
+                  color: primarySelectionColor.withValues(alpha: 0.3),
+                  blurRadius: 15,
+                  offset: const Offset(0, 6),
+                ),
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      'Taux d\'accomplissement',
+                      style: TextStyle(color: Colors.white70, fontSize: 14, fontWeight: FontWeight.w500),
+                    ),
+                    Text(
+                      '${(completionPercentage * 100).toStringAsFixed(0)}%',
+                      style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(10),
+                  child: LinearProgressIndicator(
+                    value: completionPercentage,
+                    minHeight: 10,
+                    backgroundColor: Colors.white.withValues(alpha: 0.25),
+                    valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Text(
+                  '$completed sur $total tâche(s) terminée(s)',
+                  style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w500),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 24),
+
+          // Grille des statuts
+          Text(
+            'Répartition par Statut',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: isDarkTheme ? Colors.white70 : const Color(0xFF475569)),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              _buildStatCard('À faire', todo.toString(), Icons.pending_actions_rounded, const Color(0xFFF59E0B), isDarkTheme),
+              const SizedBox(width: 12),
+              _buildStatCard('En cours', inProgress.toString(), Icons.sync_rounded, const Color(0xFF3B82F6), isDarkTheme),
+              const SizedBox(width: 12),
+              _buildStatCard('Terminées', completed.toString(), Icons.task_alt_rounded, const Color(0xFF10B981), isDarkTheme),
+            ],
+          ),
+          const SizedBox(height: 24),
+
+          // Priorités
+          Text(
+            'Répartition par Priorité',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: isDarkTheme ? Colors.white70 : const Color(0xFF475569)),
+          ),
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: isDarkTheme ? const Color(0xFF1E293B) : Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: isDarkTheme ? const Color(0xFF334155) : const Color(0xFFE2E8F0)),
+            ),
+            child: Column(
+              children: [
+                _buildPriorityRow('Haute', highPriority, total, const Color(0xFFEF4444), isDarkTheme),
+                const Divider(height: 20),
+                _buildPriorityRow('Moyenne', mediumPriority, total, const Color(0xFFF59E0B), isDarkTheme),
+                const Divider(height: 20),
+                _buildPriorityRow('Basse', lowPriority, total, const Color(0xFF10B981), isDarkTheme),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatCard(String label, String count, IconData icon, Color color, bool isDarkTheme) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
+        decoration: BoxDecoration(
+          color: isDarkTheme ? const Color(0xFF1E293B) : Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: isDarkTheme ? const Color(0xFF334155) : const Color(0xFFE2E8F0)),
+        ),
+        child: Column(
+          children: [
+            Icon(icon, color: color, size: 26),
+            const SizedBox(height: 8),
+            Text(
+              count,
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: isDarkTheme ? Colors.white : const Color(0xFF1E293B)),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              label,
+              style: TextStyle(fontSize: 12, color: isDarkTheme ? Colors.white60 : const Color(0xFF64748B)),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPriorityRow(String label, int count, int total, Color color, bool isDarkTheme) {
+    final double pct = total > 0 ? (count / total) : 0.0;
+    return Row(
+      children: [
+        Container(
+          width: 10,
+          height: 10,
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+        ),
+        const SizedBox(width: 10),
+        SizedBox(
+          width: 70,
+          child: Text(label, style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14, color: isDarkTheme ? Colors.white : const Color(0xFF1E293B))),
+        ),
+        Expanded(
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(6),
+            child: LinearProgressIndicator(
+              value: pct,
+              minHeight: 8,
+              backgroundColor: isDarkTheme ? const Color(0xFF334155) : const Color(0xFFF1F5F9),
+              valueColor: AlwaysStoppedAnimation<Color>(color),
+            ),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Text('$count', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: isDarkTheme ? Colors.white : const Color(0xFF1E293B))),
+      ],
     );
   }
 }
