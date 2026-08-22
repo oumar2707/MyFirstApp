@@ -1,15 +1,33 @@
 import 'dart:convert';
+import 'package:crypto/crypto.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/user_model.dart';
 
 // ============================================================================
 // FICHIER : lib/services/auth_service.dart
 // ROLE    : Service d'authentification 100% local avec SharedPreferences.
+// SÉCURITÉ: Les mots de passe sont hachés avec l'algorithme SHA-256 (crypto).
 // ============================================================================
 
 class AuthService {
   static const String _usersKey = 'registered_users_list';
   static const String _currentSessionKey = 'active_user_session';
+
+  /// Fonction privée pour hacher un mot de passe avec SHA-256.
+  ///
+  /// EXPLICATION PÉDAGOGIQUE POUR DÉBUTANTS :
+  /// Un hash est une empreinte numérique à sens unique (one-way).
+  /// - Il est techniquement impossible de "déhasher" ou de retrouver le mot de
+  ///   passe original en clair à partir de son hash.
+  /// - Pour vérifier si le mot de passe saisi est correct lors de la connexion,
+  ///   on génère le hash du mot de passe saisi et on le compare directement au
+  ///   hash sauvegardé dans SharedPreferences.
+  /// - Ainsi, le mot de passe original n'est jamais stocké ni conservé en clair.
+  static String _hashPassword(String password) {
+    final bytes = utf8.encode(password); // Conversion du texte en octets UTF-8
+    final digest = sha256.convert(bytes); // Calcul de l'empreinte SHA-256
+    return digest.toString(); // Retourne le hash sous forme de texte hexadécimal
+  }
 
   /// Récupérer tous les utilisateurs enregistrés depuis SharedPreferences
   static Future<List<UserModel>> _getRegisteredUsers() async {
@@ -52,11 +70,14 @@ class AuthService {
       return (success: false, message: 'Un compte existe déjà avec cet e-mail.', user: null);
     }
 
+    // Hachage du mot de passe avant création du modèle : seul le hash est stocké
+    final hashedPassword = _hashPassword(cleanPassword);
+
     final newUser = UserModel(
       id: DateTime.now().millisecondsSinceEpoch.toString(),
       name: cleanName,
       email: cleanEmail,
-      password: cleanPassword,
+      password: hashedPassword,
       createdAt: DateTime.now(),
     );
 
@@ -94,9 +115,12 @@ class AuthService {
       );
     }
 
-    // 2. Vérifier si le mot de passe correspond
+    // Hachage de la saisie utilisateur pour comparaison
+    final hashedPassword = _hashPassword(cleanPassword);
+
+    // 2. Vérifier si le hash du mot de passe correspond à celui stocké
     final matchedUser = usersWithEmail.firstWhere(
-      (u) => u.password.trim() == cleanPassword,
+      (u) => u.password.trim() == hashedPassword,
       orElse: () => UserModel(
         id: '',
         name: '',
@@ -204,7 +228,9 @@ class AuthService {
       return (success: false, message: 'Veuillez remplir tous les champs de mot de passe.');
     }
 
-    if (currentUser.password.trim() != cleanCurrent) {
+    // Hachage du mot de passe actuel saisi pour comparaison avec le hash stocké
+    final hashedCurrent = _hashPassword(cleanCurrent);
+    if (currentUser.password.trim() != hashedCurrent) {
       return (success: false, message: 'Le mot de passe actuel est incorrect.');
     }
 
@@ -216,7 +242,8 @@ class AuthService {
       return (success: false, message: 'Les nouveaux mots de passe ne correspondent pas.');
     }
 
-    currentUser.password = cleanNew;
+    // Hachage du nouveau mot de passe avant sauvegarde
+    currentUser.password = _hashPassword(cleanNew);
 
     final users = await _getRegisteredUsers();
     final index = users.indexWhere((u) => u.id == currentUser.id);

@@ -41,6 +41,12 @@ dependencies:
   # Package officiel pour la sélection de photos depuis la galerie
   image_picker: ^1.1.2
 
+  # Package officiel Dart pour le hachage cryptographique (SHA-256)
+  crypto: ^3.0.6
+
+  # Package officiel Flutter pour accéder aux répertoires du système de fichiers (ex: Documents)
+  path_provider: ^2.1.5
+
 
 dev_dependencies:
   flutter_test:

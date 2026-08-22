@@ -1,6 +1,7 @@
-import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:path_provider/path_provider.dart';
 import '../models/user_model.dart';
 import '../models/task.dart';
 import '../services/auth_service.dart';
@@ -39,7 +40,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
     (id: 'robot', icon: Icons.smart_toy_rounded, color: Color(0xFF8B5CF6), name: 'Robot'),
   ];
 
-  /// Méthode d'importation d'une photo depuis la galerie locale
+  /// Méthode d'importation d'une photo depuis la galerie locale.
+  ///
+  /// EXPLICATION PÉDAGOGIQUE POUR DÉBUTANTS :
+  /// Pourquoi stocker un CHEMIN DE FICHIER au lieu du texte Base64 dans SharedPreferences ?
+  /// 1. Performance & Espace : L'encodage d'une photo en chaîne texte Base64 augmente sa taille de ~33%.
+  ///    Stocker une longue chaîne d'image dans SharedPreferences surcharge le fichier JSON local
+  ///    et ralentit inutilement les recharges de session à chaque démarrage.
+  /// 2. Gestion optimale de la mémoire : En enregistrant physiquement l'image dans le dossier "Documents"
+  ///    de l'application (via path_provider) et en ne conservant dans SharedPreferences que son CHEMIN
+  ///    (ex: "/path/app_docs/avatar_123.jpg"), SharedPreferences reste ultra-léger (quelques octets).
+  ///    Flutter utilise ensuite `Image.file()` qui gère efficacement le chargement et la mémoire du fichier.
   Future<void> _pickAvatarFromGallery() async {
     final currentUser = widget.user;
     if (currentUser == null) return;
@@ -54,14 +65,40 @@ class _ProfileScreenState extends State<ProfileScreen> {
       );
 
       if (image != null) {
-        final bytes = await image.readAsBytes();
-        final base64Image = base64Encode(bytes);
-        final avatarString = 'custom_base64:$base64Image';
+        // 1. Accès au répertoire Documents de l'application
+        final Directory appDocDir = await getApplicationDocumentsDirectory();
 
+        // 2. Définition du chemin cible unique basé sur l'ID utilisateur
+        final String newAvatarPath = '${appDocDir.path}/avatar_${currentUser.id}.jpg';
+
+        // 3. Suppression de l'ancien fichier avatar s'il existe pour éviter l'accumulation de fichiers inutile
+        if (currentUser.avatar != null && currentUser.avatar!.isNotEmpty) {
+          try {
+            final oldFile = File(currentUser.avatar!);
+            if (oldFile.existsSync() && oldFile.path != newAvatarPath) {
+              await oldFile.delete();
+            }
+          } catch (_) {
+            // Ignorer si l'ancien fichier n'a pas pu être supprimé
+          }
+        }
+
+        // Si le fichier cible existe déjà à cet emplacement, le supprimer avant d'écrire le nouveau
+        final targetFile = File(newAvatarPath);
+        if (targetFile.existsSync()) {
+          try {
+            await targetFile.delete();
+          } catch (_) {}
+        }
+
+        // 4. Copie physique du fichier image vers le dossier de l'application
+        await File(image.path).copy(newAvatarPath);
+
+        // 5. Sauvegarde uniquement du CHEMIN du fichier dans SharedPreferences
         final updateResult = await AuthService.updateUserProfile(
           name: currentUser.name,
           email: currentUser.email,
-          avatar: avatarString,
+          avatar: newAvatarPath,
         );
 
         if (mounted) {
@@ -161,6 +198,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     return InkWell(
                       onTap: () async {
                         Navigator.of(dialogContext).pop();
+                        // Suppression de l'ancien fichier avatar personnalisé s'il existait
+                        if (currentUser.avatar != null && currentUser.avatar!.isNotEmpty) {
+                          try {
+                            final oldFile = File(currentUser.avatar!);
+                            if (oldFile.existsSync()) {
+                              await oldFile.delete();
+                            }
+                          } catch (_) {}
+                        }
+
                         final result = await AuthService.updateUserProfile(
                           name: currentUser.name,
                           email: currentUser.email,
@@ -453,35 +500,44 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Widget _buildAvatarWidget(UserModel? user) {
-    final avatarId = user?.avatar ?? 'initials';
+    final avatarValue = user?.avatar ?? 'initials';
 
-    if (avatarId.startsWith('custom_base64:')) {
+    // 1. Si le champ avatar correspond à un chemin de fichier local existant sur l'appareil
+    if (avatarValue.isNotEmpty && !avatarValue.startsWith('custom_base64:')) {
       try {
-        final base64Data = avatarId.replaceFirst('custom_base64:', '');
-        final bytes = base64Decode(base64Data);
-        return ClipOval(
-          child: Image.memory(
-            bytes,
-            width: 76,
-            height: 76,
-            fit: BoxFit.cover,
-            errorBuilder: (context, error, stackTrace) => const Icon(Icons.person_rounded, size: 40, color: primaryColor),
-          ),
-        );
+        final avatarFile = File(avatarValue);
+        if (avatarFile.existsSync()) {
+          return ClipOval(
+            child: Image.file(
+              avatarFile,
+              width: 76,
+              height: 76,
+              fit: BoxFit.cover,
+              errorBuilder: (context, error, stackTrace) => const Icon(
+                Icons.person_rounded,
+                size: 40,
+                color: primaryColor,
+              ),
+            ),
+          );
+        }
       } catch (_) {
-        return const Icon(Icons.person_rounded, size: 40, color: primaryColor);
+        // En cas d'erreur de lecture du fichier, le code continue vers la solution de repli
       }
     }
 
-    final matchedAvatar = _availableAvatars.firstWhere(
-      (a) => a.id == avatarId,
-      orElse: () => _availableAvatars.first,
-    );
+    // 2. Recherche parmi la liste des avatars-icônes prédéfinis ('face_1', 'robot', etc.)
+    final isPresetIcon = _availableAvatars.any((a) => a.id == avatarValue);
 
-    if (avatarId != 'initials') {
+    if (isPresetIcon && avatarValue != 'initials') {
+      final matchedAvatar = _availableAvatars.firstWhere(
+        (a) => a.id == avatarValue,
+        orElse: () => _availableAvatars.first,
+      );
       return Icon(matchedAvatar.icon, size: 40, color: matchedAvatar.color);
     }
 
+    // 3. Cas par défaut ou fichier introuvable : Affichage des initiales de l'utilisateur
     return Text(
       _getInitials(user?.name ?? 'Utilisateur'),
       style: const TextStyle(

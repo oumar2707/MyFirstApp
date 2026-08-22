@@ -179,7 +179,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             return null;
                           },
                           decoration: InputDecoration(
-                            hintText: 'Jean Dupont',
+                            hintText: 'Ex: Alpha Oumar Diallo',
                             hintStyle: TextStyle(color: isDarkTheme ? Colors.white38 : const Color(0xFF94A3B8), fontSize: 14),
                             prefixIcon: const Icon(Icons.person_outline_rounded, color: primaryColor, size: 20),
                             filled: true,
